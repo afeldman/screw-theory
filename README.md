@@ -10,7 +10,7 @@ A Go library for robot forward kinematics, inverse kinematics, and trajectory pl
 - **Product of Exponentials (PoE)** - Forward kinematics via exp(θ₁ξ₁) · exp(θ₂ξ₂) · ... · M
 - **Screw Theory** - Intuitive Twist representation (ω, v) for joints
 - **Jacobian-Based IK** - Numeric inverse kinematics with gradient descent
-- **FANUC R-30iB Support** - Pre-configured 6-DOF industrial robot
+- **Generic Robot Configuration** - Easily define any robot via Twist vectors
 - **Clean API** - No matrix operations, pure quaternion math
 - **Zero Dependencies** - Only Go standard library
 
@@ -22,7 +22,7 @@ go get github.com/afeldman/screw-theory
 
 ## Quick Start
 
-### Forward Kinematics
+### Creating a Robot
 
 ```go
 package main
@@ -33,46 +33,33 @@ import (
 )
 
 func main() {
-	// Create FANUC R-30iB robot
-	robot := kinematics.NewR30iBRobot()
+	// Define your robot's Twist vectors (screw axes)
+	twists := []kinematics.Twist{
+		{Omega: [3]float64{0, 0, 1}, V: [3]float64{0, 0, 0}},      // J1: Z rotation at origin
+		{Omega: [3]float64{0, 1, 0}, V: [3]float64{0, 0, 330}},    // J2: Y rotation
+		{Omega: [3]float64{0, 1, 0}, V: [3]float64{600, 0, 330}},  // J3: Y rotation
+	}
 
-	// Joint angles in degrees
-	angles := []interface{}{0.0, -45.0, 60.0, 0.0, 45.0, 90.0}
+	// Home configuration (TCP position when all joints = 0)
+	homeConfig := kinematics.DualQuaternion{
+		Real: kinematics.Quaternion{W: 1},
+		Dual: kinematics.Quaternion{W: 0, X: 500, Z: 800},
+	}
 
-	// Compute end-effector pose
+	// Create robot
+	robot := &kinematics.Robot{
+		Name:        "My Robot",
+		Twists:      twists,
+		M:           homeConfig,
+		NumJoints:   3,
+		LinkLengths: []float64{0, 600, 475},
+	}
+
+	// Use kinematics
+	angles := []interface{}{0.0, -45.0, 60.0}
 	pose := robot.ForwardKinematics(angles)
-	fmt.Printf("Position: (%.2f, %.2f, %.2f) mm\n", pose.X, pose.Y, pose.Z)
-	fmt.Printf("Orientation: W=%.2f P=%.2f R=%.2f deg\n", pose.W, pose.P, pose.R)
+	fmt.Printf("Position: %.2f, %.2f, %.2f mm\n", pose.X, pose.Y, pose.Z)
 }
-```
-
-### Inverse Kinematics
-
-```go
-// Target end-effector pose (xyz in mm, wpr in degrees)
-target := &kinematics.XYZWPR{
-	X: 800, Y: 200, Z: 400,
-	W: 0, P: 0, R: 90,
-}
-
-// Solve IK with seed angles
-seed := [6]float64{0, -45, 60, 0, 45, 90}
-angles, err := robot.InverseKinematics(target, seed)
-if err != nil {
-	panic(err)
-}
-
-fmt.Printf("Joint angles: %v\n", angles)
-```
-
-### Trajectory Planning
-
-```go
-// Forward and backward reaching (FABRIK-style)
-start := [6]float64{0, 0, 0, 0, 0, 0}
-end := [6]float64{45, -30, 60, 0, 45, 90}
-
-// Both approaches work - direct joint interpolation or Cartesian with IK
 ```
 
 ## Core Concepts
@@ -127,21 +114,27 @@ Where:
 
 ## FANUC R-30iB Configuration
 
-Pre-configured Twist vectors and joint limits for FANUC R-30iB robots:
+While screw-theory is generic, robot-specific configurations (like FANUC R-30iB) belong in your application code.
+See [RoboViz](https://github.com/afeldman/roboviz) for an example of how to integrate this library in a real robot control system:
 
 ```go
-robot := kinematics.NewR30iBRobot()
+// This example is in RoboViz's robot package, not here
+func NewR30iBRobot() *kinematics.Robot {
+	twists := []kinematics.Twist{
+		{Omega: [3]float64{0, 0, 1}, V: [3]float64{0, 0, 0}},
+		{Omega: [3]float64{0, 1, 0}, V: [3]float64{0, 0, 330}},
+	}
+	// ...
+	return &kinematics.Robot{ /* ... */ }
+}
 
-// Joint limits (degrees)
-limits := robot.GetDefaultJointLimits()
-//  J1: [-180, 180]
-//  J2: [-125, 125]
-//  J3: [-180, 65]
-//  J4: [-180, 180]
-//  J5: [-120, 120]
-//  J6: [-360, 360]
-
-// Validate angles
+// Then use it:
+robot := NewR30iBRobot()
+limits := kinematics.JointLimits{
+	J1Min: -180, J1Max: 180,
+	J2Min: -125, J2Max: 125,
+	// ...
+}
 isValid := robot.CheckJointLimits(angles, limits)
 ```
 

@@ -7,11 +7,11 @@ import (
 
 // Robot: Forward and inverse kinematics using screw theory
 type Robot struct {
-	name        string
-	twists      []Twist
+	Name        string
+	Twists      []Twist
 	M           DualQuaternion // Home configuration
-	numJoints   int
-	linkLengths []float64
+	NumJoints   int
+	LinkLengths []float64
 }
 
 // ExponentialMap: Convert screw axis and angle to SE(3) transformation
@@ -64,11 +64,11 @@ func (r *Robot) ExponentialMap(twist Twist, theta float64) DualQuaternion {
 
 // ForwardKinematics: Compute end-effector pose from joint angles
 func (r *Robot) ForwardKinematics(jointAnglesDeg []interface{}) *XYZWPR {
-	if len(jointAnglesDeg) != r.numJoints {
+	if len(jointAnglesDeg) != r.NumJoints {
 		return nil
 	}
 
-	angles := make([]float64, r.numJoints)
+	angles := make([]float64, r.NumJoints)
 	for i, val := range jointAnglesDeg {
 		switch v := val.(type) {
 		case float64:
@@ -79,8 +79,8 @@ func (r *Robot) ForwardKinematics(jointAnglesDeg []interface{}) *XYZWPR {
 	}
 
 	T := IdentityDualQuaternion()
-	for i := 0; i < r.numJoints; i++ {
-		expMap := r.ExponentialMap(r.twists[i], angles[i])
+	for i := 0; i < r.NumJoints; i++ {
+		expMap := r.ExponentialMap(r.Twists[i], angles[i])
 		T = T.Multiply(expMap)
 	}
 	T = T.Multiply(r.M)
@@ -188,7 +188,7 @@ func (r *Robot) GetDefaultJointLimits() JointLimits {
 	}
 }
 
-// Name: Get robot name
-func (r *Robot) Name() string {
-	return r.name
+// Getter: Return robot name
+func (r *Robot) GetName() string {
+	return r.Name
 }
